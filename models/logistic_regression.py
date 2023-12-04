@@ -29,7 +29,10 @@ def eval_model(model, test_data):
     labels = labels.ravel()
     model_acc = model.score(features, labels)
     probas = model.predict_proba(features)[:, 1]
-    model_auc = roc_auc_score(labels, probas)
+    try:
+        model_auc = roc_auc_score(labels, probas)
+    except ValueError:
+        model_auc = None
     return model_acc, model_auc
 
 def aggregate_classes(classes):

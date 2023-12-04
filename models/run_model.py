@@ -83,26 +83,26 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
 
 
 if __name__ == "__main__":
-    DATA_FOLDER = "heart_data"
+    DATA_FOLDER = "shopping_behavior"
     train_splits, eval_splits, test_splits = read_data(DATA_FOLDER)
     full_train, full_eval, full_test = combine_split_datasets(train_splits, eval_splits, test_splits)
 
-    MODEL_TYPE = "logistic regression"
-    AGG_TYPE = "simple mean"
-    split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, train_splits, eval_splits, test_splits)
+    # MODEL_TYPE = "logistic regression"
+    # AGG_TYPE = "simple mean"
+    # split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, train_splits, eval_splits, test_splits)
 
-    for i in range(len(split_accs)):
-        print(f"Split {i} has acc {split_accs[i]} and auc {split_aucs[i]}")
+    # for i in range(len(split_accs)):
+    #     print(f"Split {i} has acc {split_accs[i]} and auc {split_aucs[i]}")
 
-    print(f"Aggregate model has acc: {agg_acc} and AUC: {agg_auc}")
+    # print(f"Aggregate model has acc: {agg_acc} and AUC: {agg_auc}")
 
-    print(f"The mean of split accs: {np.mean(split_accs)}. The mean of split AUCs: {np.mean(split_aucs)}")
+    # print(f"The mean of split accs: {np.mean(split_accs)}. The mean of split AUCs: {np.mean(split_aucs)}")
 
 
     # Baseline: 0.86, 0.92
-    # from logistic_regression import *
-    # model, coef, intercept, classes = fit_model(full_train)
-    # acc, auc = eval_model(model, full_test)
-    # print(type(classes))
-    # print(classes)
-
+    from logistic_regression import *
+    model, coef, intercept, classes = fit_model(full_train)
+    acc, auc = eval_model(model, full_test)
+    print(type(classes))
+    print(classes)
+    print(acc)

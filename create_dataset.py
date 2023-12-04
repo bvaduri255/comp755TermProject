@@ -52,10 +52,10 @@ def write_splits(dataset_name, train_eval_test_percentages, splits):
 
 if __name__ == "__main__":
     # Name of dataset folder 
-    DATASET_NAME = "heart_data"
+    DATASET_NAME = "shopping_behavior"
 
     # Relative path of the data file
-    DATASET_PATH = "heart.csv"
+    DATASET_PATH = "shopping_processed.csv"
 
     # Number of splits
     NUM_SPLITS = 3
@@ -66,5 +66,5 @@ if __name__ == "__main__":
     TEST_SPLIT = 0.2
 
     TRAIN_EVAL_TEST_PERCENTAGES = [0.7, 0.1, 0.2]
-    splits = make_splits(DATASET_PATH, NUM_SPLITS, shuffle=False)
+    splits = make_splits(DATASET_PATH, NUM_SPLITS, shuffle=True)
     write_splits(DATASET_NAME, TRAIN_EVAL_TEST_PERCENTAGES, splits)
