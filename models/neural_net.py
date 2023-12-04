@@ -2,69 +2,93 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.utils import to_categorical
+from keras import metrics
 
 import os
-import pandas as pd
 import numpy as np
 from pathlib import Path
 
-def read_data(folder_name):
-    """Given name of dataset folder, read all data from splits into lists"""
-    train_splits, eval_splits, test_splits = [], [], []
+INPUT_DIM = 13
+OUTPUT_DIM = 2
 
-    data_path = os.path.join(os.getcwd(), Path(folder_name))
-    files = os.listdir(data_path)
-    num_splits = len(files) // 3
-    print(f"Calculated number of splits in dataset: {num_splits}")
+# Fit new model to input features and labels, return model & model parameters
+def fit_model(data):
+    features, labels = data[:, :-1], data[:, -1:]
+    labels = to_categorical(labels, num_classes=len(np.unique(labels)))
 
-    for split_i in range(num_splits):
-        train_file = os.path.join(data_path, f"split{split_i}_train")
-        eval_file = os.path.join(data_path, f"split{split_i}_eval")
-        test_file = os.path.join(data_path, f"split{split_i}_test")
+    model = Sequential()
+    model.add(Dense(10, input_dim=INPUT_DIM, activation='relu')) 
+    model.add(Dense(10, activation='relu')) 
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(OUTPUT_DIM, activation='softmax')) 
 
-        train_split = np.genfromtxt(train_file, delimiter=",")
-        eval_split = np.genfromtxt(eval_file, delimiter=",")
-        test_split = np.genfromtxt(test_file, delimiter=",")
+    # Compile the model
+    optimizer = Adam(learning_rate=0.001)
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy', metrics.AUC()])
 
-        train_splits.append(train_split)
-        eval_splits.append(eval_split)
-        test_splits.append(test_split)
-    return train_splits, eval_splits, test_splits
-        
+    # Train the model
+    model.fit(features, labels, epochs=100, batch_size=64, validation_split=0.2, verbose=0)
 
-def combine_split_datasets(train_splits, eval_splits, test_splits):
-    train_combined = np.vstack(train_splits)
-    eval_combined = np.vstack(eval_splits)
-    test_combined = np.vstack(test_splits)
-    return train_combined, eval_combined, test_combined
+    l1_w = model.layers[0].get_weights()[0]
+    l1_b  = model.layers[0].get_weights()[1]
+    l2_w = model.layers[1].get_weights()[0]
+    l2_b  = model.layers[1].get_weights()[1]
+    l3_w = model.layers[2].get_weights()[0]
+    l3_b  = model.layers[2].get_weights()[1]
+    l4_w = model.layers[3].get_weights()[0]
+    l4_b  = model.layers[3].get_weights()[1]
+    return model, l1_w, l1_b, l2_w, l2_b, l3_w, l3_b, l4_w, l4_b
+
+
+# Load parameter into model, return model
+def load_model(l1_w, l1_b, l2_w, l2_b, l3_w, l3_b, l4_w, l4_b):
+    model = Sequential()
+    model.add(Dense(10, input_dim=INPUT_DIM, activation='relu')) 
+    model.add(Dense(10, activation='relu')) 
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(OUTPUT_DIM, activation='softmax')) 
+
+    # Compile the model
+    optimizer = Adam(learning_rate=0.001)
+    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy', metrics.AUC()])
+
+    # Train the model
+    model.layers[0].set_weights([l1_w, l1_b])
+    model.layers[1].set_weights([l2_w, l2_b])
+    model.layers[2].set_weights([l3_w, l3_b])
+    model.layers[3].set_weights([l4_w, l4_b])
+    return model
+
+
+# Predict on new data, return metrics (accuracy, confusion matrix, AUC)
+def eval_model(model, test_data):
+    features, labels = test_data[:, :-1], test_data[:, -1:]
+    labels = to_categorical(labels, num_classes=len(np.unique(labels)))
+    loss, accuracy, auc = model.evaluate(features, labels)   
+    return accuracy, auc
 
 
 if __name__ == "__main__":
-    DATA_FOLDER = "shopping_behavior"
+    from run_model import read_data, combine_split_datasets
+    DATA_FOLDER = "heart_data"
+
     train_splits, eval_splits, test_splits = read_data(DATA_FOLDER)
     full_train, full_eval, full_test = combine_split_datasets(train_splits, eval_splits, test_splits)
 
     X_train, y_train = full_train[:, :-1], full_train[:, -1:]
     X_test, y_test = full_test[:, :-1], full_test[:, -1:]
 
+    print(f"Input dim: {X_train.shape[1]}, output dim: {len(np.unique(y_train))}")
+
     # Convert labels to one-hot encoding
-    y_one_hot_train = to_categorical(y_train, num_classes=7)
-    y_one_hot_test = to_categorical(y_test, num_classes=7)
+    y_train = to_categorical(y_train, num_classes=2)
+    y_test = to_categorical(y_test, num_classes=2)
 
-    # Create a neural network model
-    model = Sequential()
-    model.add(Dense(10, input_dim=16, activation='relu'))  # First hidden layer with 5 units and ReLU activation
-    model.add(Dense(10, activation='relu'))  # Second hidden layer with 5 units and ReLU activation
-    model.add(Dense(10, activation='relu'))
-    model.add(Dense(7, activation='softmax'))  # Output layer with 7 units and softmax activation
+    model, *params = fit_model(full_train)
+    accuracy, auc = eval_model(model, full_test)
+    print(f"Baseline model: Test Accuracy: {accuracy:.4f}, AUC: {auc:.4f}")
 
-    # Compile the model
-    optimizer = Adam(learning_rate=0.001)
-    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-
-    # Train the model
-    model.fit(X_train, y_one_hot_train, epochs=100, batch_size=64, validation_split=0.2, verbose=2)
-
-    # Evaluate the model on the test set
-    loss, accuracy = model.evaluate(X_test, y_one_hot_test)
-    print(f"Test Loss: {loss:.4f}, Test Accuracy: {accuracy:.4f}")
+    # Load model faithfulness
+    loaded_model = load_model(*params)
+    accuracy, auc = eval_model(loaded_model, full_test)
+    print(f"Loaded model: Test Accuracy: {accuracy:.4f}, AUC: {auc:.4f}")

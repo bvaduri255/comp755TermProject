@@ -45,6 +45,14 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
         # Dictionary denote custom aggregation functions specific to the model. {index: function}
         custom_agg_funcs = {2: aggregate_classes}
 
+    elif model_type == "neural network":
+        from neural_net import fit_model, load_model, eval_model
+        l1_w, l2_w, l3_w, l4_w = [], [], [], []
+        l1_b, l2_b, l3_b, l4_b = [], [], [], []
+        parameters = [l1_w, l1_b, l2_w, l2_b, l3_w, l3_b, l4_w, l4_b]
+        custom_agg_funcs = {}
+
+
     # Determine aggregation method
     if agg_type == "simple mean":
         from agg_functions import simple_mean
@@ -73,8 +81,6 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
             agg_parameters.append(custom_agg_funcs[i](parameters[i]))
         else:
             agg_parameters.append(agg_func(parameters[i]))
-    
-    print(agg_parameters)
     agg_model = load_model(*agg_parameters)
     full_test_data = np.vstack(test_splits)
     agg_acc, agg_auc = eval_model(agg_model, full_test_data)
@@ -83,26 +89,16 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
 
 
 if __name__ == "__main__":
-    DATA_FOLDER = "shopping_behavior"
+    DATA_FOLDER = "heart_data"
     train_splits, eval_splits, test_splits = read_data(DATA_FOLDER)
     full_train, full_eval, full_test = combine_split_datasets(train_splits, eval_splits, test_splits)
 
-    # MODEL_TYPE = "logistic regression"
-    # AGG_TYPE = "simple mean"
-    # split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, train_splits, eval_splits, test_splits)
+    MODEL_TYPE = "logistic regression"
+    AGG_TYPE = "simple mean"
+    split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, train_splits, eval_splits, test_splits)
 
-    # for i in range(len(split_accs)):
-    #     print(f"Split {i} has acc {split_accs[i]} and auc {split_aucs[i]}")
+    for i in range(len(split_accs)):
+        print(f"Split {i} has acc {split_accs[i]} and auc {split_aucs[i]}")
 
-    # print(f"Aggregate model has acc: {agg_acc} and AUC: {agg_auc}")
-
-    # print(f"The mean of split accs: {np.mean(split_accs)}. The mean of split AUCs: {np.mean(split_aucs)}")
-
-
-    # Baseline: 0.86, 0.92
-    from logistic_regression import *
-    model, coef, intercept, classes = fit_model(full_train)
-    acc, auc = eval_model(model, full_test)
-    print(type(classes))
-    print(classes)
-    print(acc)
+    print(f"Aggregate model has acc: {agg_acc} and AUC: {agg_auc}")
+    print(f"The mean of split accs: {np.mean(split_accs)}. The mean of split AUCs: {np.mean(split_aucs)}")
