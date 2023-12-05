@@ -194,3 +194,9 @@ class NeuralNetworkFederated:
         avg_biases = np.mean(biases, axis=0)
 
         return self.create_model(avg_weights, avg_biases)
+
+
+
+def(gradient, weights):
+
+[client_gradients[1] for client_gradients in gradients]

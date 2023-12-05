@@ -76,3 +76,23 @@ for round in range(900):
 
 # Evaluate the global model
 global_model.evaluate(x_test, y_test)
+
+x_training = x_train[:int(0.7*len(x_train)), :]
+y_training = y_train[:int(0.7*len(y_train)), :]
+
+x_evals = x_test[:int(0.7*len(x_test)), :]
+y_evals = y_test[:int(0.7*len(y_test)), :]
+
+art_train_attack_x = x_train[:len(x_train) - int(0.7*x_train), :]
+art_eval_attack_x = x_test[:len(x_test) - int(0.7*x_test), :]
+art_attack_x = np.vstack([art_train_attack_x, art_eval_attack_x])
+
+art_train_attack_y = y_train[:len(y_train) - int(0.7*y_train), :]
+art_eval_attack_y = y_test[:len(y_test) - int(0.7*y_test), :]
+art_attack_y = np.vstack([art_train_attack_y, art_eval_attack_y])
+
+model = KerasClassifier(model=global_model)
+mi = MembershipInferenceBlackBox(model, attack_model_type="nn", input_type="prediction", nn_model_batch_size=128)
+mi.fit(x_training, y_training, x_evals, y_evals)
+values = mi.infer(art_attack_x, art_attack_y, probabilities=True)
+print(values)
