@@ -24,8 +24,8 @@ def validation_weighted_average(parameters, validation_acc):
 
 def random_weighted_average(parameters):
     """Applies validation accuracy to a list of parameters"""
-    # Make random weights
-    random_weights = np.random.rand(len(parameters))
+    # Make random weights that sum to 1
+    random_weights = np.random.dirichlet(np.ones(len(parameters)), size=1)[0]
     return sum(w * sum(x) for w, x in zip(random_weights, parameters)) / sum(random_weights) if sum(random_weights) != 0 else 0
 
 def random_parameter_select(parameters):
@@ -41,6 +41,7 @@ def proximal_operator_weighted_average(parameters):
     avg_params = np.mean(parameters, axis=0)
     # Apply proximal_operator to avg_params
     weights = proximal_operator(0.1, avg_params)
+<<<<<<< HEAD
     return np.mean([w * x for w, x in zip(weights, parameters)], axis=0)
 
 
@@ -93,3 +94,9 @@ labels = ['A', 'B', 'C', 'D']
 
 # Plotting the graph
 plot_accuracy_privacy_graph(accuracy, privacy, labels)
+=======
+
+    # Normalize weights
+    weights = weights / np.sum(weights)
+    return np.mean([w * x for w, x in zip(weights, parameters)], axis=0)
+>>>>>>> beb25b35ef69807813a4642cce7f28c324cde718
