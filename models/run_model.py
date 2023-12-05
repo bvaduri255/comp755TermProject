@@ -3,6 +3,15 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
+import numpy as np
+import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
+
+from art.utils import load_mnist
+from art.attacks.evasion import FastGradientMethod
+from art.estimators.classification import KerasClassifier
+from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
+
 def read_data(folder_name):
     """Given name of dataset folder, read all data from splits into lists"""
     train_splits, eval_splits, test_splits = [], [], []
@@ -34,7 +43,7 @@ def combine_split_datasets(train_splits, eval_splits, test_splits):
     return train_combined, eval_combined, test_combined
 
 
-def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
+def get_agg_model(model_type, agg_type, x_train_splits, y_train_splits, x_test_splits, y_test_splits):
     """Fits split models, returns split performance metrics and aggregate model"""
     # Determine model and parameters to aggregate
     if model_type == "logistic regression":
@@ -52,25 +61,35 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
         parameters = [l1_w, l1_b, l2_w, l2_b, l3_w, l3_b, l4_w, l4_b]
         custom_agg_funcs = {}
 
+    elif model_type == "mnist nn":
+        from mnist_nn import fit_model, load_model, eval_model
+        l0_w, l2_w, l5_w, l6_w = [], [], [], []
+        l0_b, l2_b, l5_b, l6_b = [], [], [], []
+        parameters = [l0_w, l0_b, l2_w, l2_b, l5_w, l5_b, l6_w, l6_b]
+        custom_agg_funcs = {}
 
     # Determine aggregation method
     if agg_type == "simple mean":
         from agg_functions import simple_mean
         agg_func = simple_mean
+    if agg_type == "proximal operator weighted average":
+        from agg_functions import proximal_operator_weighted_average
+        agg_func = proximal_operator_weighted_average
 
     # Train each split model, keep track of each splits performance, and fit & evalutate aggregate model
     split_accs, split_aucs = [], []
-    for split_i in range(len(train_splits)):
+    for split_i in range(len(x_train_splits)):
         print(f"Fitting split {split_i}")
-        train_data = train_splits[split_i]
-        eval_data = eval_splits[split_i]
-        test_data = test_splits[split_i]
+        x_train = x_train_splits[split_i]
+        y_train = y_train_splits[split_i]
+        x_test = x_test_splits[split_i]
+        y_test = y_test_splits[split_i]
 
-        model, *learned_params = fit_model(train_data)
+        model, *learned_params = fit_model(x_train, y_train)
         assert len(parameters) == len(learned_params)
         for j in range(len(parameters)):
             parameters[j].append(learned_params[j])
-        split_acc, split_auc = eval_model(model, test_data)
+        split_acc, split_auc = eval_model(model, x_test, y_test)
         split_accs.append(split_acc)
         split_aucs.append(split_auc)
     
@@ -82,20 +101,41 @@ def get_agg_model(model_type, agg_type, train_splits, eval_splits, test_splits):
         else:
             agg_parameters.append(agg_func(parameters[i]))
     agg_model = load_model(*agg_parameters)
-    full_test_data = np.vstack(test_splits)
-    agg_acc, agg_auc = eval_model(agg_model, full_test_data)
+    agg_acc, agg_auc = eval_model(agg_model, x_test, y_test)
 
     return split_accs, split_aucs, agg_acc, agg_auc
 
+def split_data(data, num_splits):
+    N = len(data)
+    split_size = N // num_splits
+    last_split_size = split_size + N % num_splits
+    splits = []
+
+    for i in range(num_splits-1):
+        start_idx, end_idx = i, i+split_size
+        current_split = data[start_idx:end_idx, :]
+        splits.append(current_split)
+    splits.append(data[-last_split_size:, :])
+    return splits
 
 if __name__ == "__main__":
-    DATA_FOLDER = "heart_data"
-    train_splits, eval_splits, test_splits = read_data(DATA_FOLDER)
-    full_train, full_eval, full_test = combine_split_datasets(train_splits, eval_splits, test_splits)
+    """No longer using heart or shopping data"""
+    # DATA_FOLDER = "heart_data"
+    # train_splits, eval_splits, test_splits = read_data(DATA_FOLDER)
+    # full_train, full_eval, full_test = combine_split_datasets(train_splits, eval_splits, test_splits)
 
-    MODEL_TYPE = "logistic regression"
-    AGG_TYPE = "simple mean"
-    split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, train_splits, eval_splits, test_splits)
+    """Load MNIST dataset"""
+    (x_train, y_train), (x_test, y_test), min_pixel_value, max_pixel_value = load_mnist()
+    # Split MNIST
+    num_splits = 4
+    x_train_splits = split_data(x_train, num_splits)
+    y_train_splits = split_data(y_train, num_splits)
+    x_test_splits = split_data(x_test, num_splits)
+    y_test_splits = split_data(y_test, num_splits)
+
+    MODEL_TYPE = "mnist nn"     
+    AGG_TYPE = "proximal operator weighted average"
+    split_accs, split_aucs, agg_acc, agg_auc = get_agg_model(MODEL_TYPE, AGG_TYPE, x_train_splits, y_train_splits, x_test_splits, y_test_splits)
 
     for i in range(len(split_accs)):
         print(f"Split {i} has acc {split_accs[i]} and auc {split_aucs[i]}")
