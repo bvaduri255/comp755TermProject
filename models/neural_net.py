@@ -1,6 +1,6 @@
 from keras.models import Sequential
 from keras.layers import Dense
-from keras.optimizers import Adam
+from keras.optimizers.legacy import Adam
 from keras.utils import to_categorical
 from keras import metrics
 
@@ -27,7 +27,7 @@ def fit_model(data):
     model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy', metrics.AUC()])
 
     # Train the model
-    model.fit(features, labels, epochs=100, batch_size=64, validation_split=0.2, verbose=0)
+    model.fit(features, labels, epochs=200, batch_size=128, validation_split=0.2, verbose=0)
 
     l1_w = model.layers[0].get_weights()[0]
     l1_b  = model.layers[0].get_weights()[1]
@@ -92,3 +92,28 @@ if __name__ == "__main__":
     loaded_model = load_model(*params)
     accuracy, auc = eval_model(loaded_model, full_test)
     print(f"Loaded model: Test Accuracy: {accuracy:.4f}, AUC: {auc:.4f}")
+
+    # ART
+    len_train, len_eval = len(full_train), len(full_eval)
+    art_train = full_train[:int(0.7*len_train), :]
+    art_eval = full_eval[:int(0.7*len_eval), :]
+
+    X_train, y_train = art_train[:, :-1], art_train[:, -1:]
+    y_train = to_categorical(y_train, num_classes=2)
+    X_eval, y_eval = art_eval[:, :-1], art_eval[:, -1:]
+    y_eval = to_categorical(y_eval, num_classes=2)
+
+    art_train_attack = full_train[:len_train - int(0.7*len_train), :]
+    art_eval_attack = full_eval[:len_eval - int(0.7*len_eval), :]
+    art_attack = np.vstack([art_train_attack, art_eval_attack])
+    np.random.shuffle(art_attack)
+    X_attack, y_attack = art_attack[:, :-1], art_attack[:, -1:]
+
+    from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
+    from art.estimators.classification import KerasClassifier
+
+    model = KerasClassifier(model=model)
+    mi = MembershipInferenceBlackBox(model, attack_model_type="nn", input_type="prediction", nn_model_batch_size=128)
+    mi.fit(X_train, y_train, X_eval, y_eval)
+    values = mi.infer(X_attack, y_attack, probabilities=True)
+    print(values)
