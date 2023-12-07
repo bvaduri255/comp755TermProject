@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1ONAidUDD8z5MiBbgS5J7GTxPwvYWI8Zc
 """
 
-pip install adversarial-robustness-toolbox
+# pip install adversarial-robustness-toolbox
 
 import os
 import numpy as np
@@ -60,11 +60,11 @@ def simulate_clients(num_clients, x_train, y_train):
 def aggregate_gradients(gradients, agg_func, support=None):
     num_layers = len(gradients[0])
     agg_grads = []
-        for layer_i in range(num_layers):
-            layer_grads = [split[layer_i] for split in gradients]
-            agg_layer_grad = agg_func(layer, support)
-            agg_grads.append(agg_layer_grad)
-        return agg_grads
+    for layer_i in range(num_layers):
+        layer_grads = [split[layer_i] for split in gradients]
+        agg_layer_grad = agg_func(layer_grads, support)
+        agg_grads.append(agg_layer_grad)
+    return agg_grads
 
 # Function to apply aggregated gradients to the model
 def apply_gradients(model, gradients, learning_rate):
@@ -79,7 +79,7 @@ clients = simulate_clients(num_clients, x_train, y_train)
 global_model = create_model()
 
 # Training rounds
-for round in range(8):
+for round in tqdm(range(20)):
     client_gradients = []
     for client_data in clients:
         client_model = create_model()
@@ -120,12 +120,12 @@ seventh_layer_biases  = global_model.layers[6].get_weights()[1]
 
 ## FOR THE BELOW FILE -> CHANGE TO LOCATION ON YOUR COMPUTER
 
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/zero_layer_weights", first_layer_weights)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/zero_layer_biases", first_layer_biases)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/two_layer_weights", third_layer_weights)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/two_layer_biases", third_layer_biases)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/five_layer_weights", sixth_layer_weights)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/five_layer_biases", sixth_layer_biases)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_weights", seventh_layer_weights)
-np.save("/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_biases", seventh_layer_biases)
+np.save("TEMP_model_weights/zero_layer_weights", first_layer_weights)
+np.save("TEMP_model_weights/zero_layer_biases", first_layer_biases)
+np.save("TEMP_model_weights/two_layer_weights", third_layer_weights)
+np.save("TEMP_model_weights/two_layer_biases", third_layer_biases)
+np.save("TEMP_model_weights/five_layer_weights", sixth_layer_weights)
+np.save("TEMP_model_weights/five_layer_biases", sixth_layer_biases)
+np.save("TEMP_model_weights/six_layer_weights", seventh_layer_weights)
+np.save("TEMP_model_weights/six_layer_biases", seventh_layer_biases)
 
