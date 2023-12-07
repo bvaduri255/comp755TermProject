@@ -7,7 +7,7 @@ Original file is located at
     https://colab.research.google.com/drive/1GiI2KnSdUevrq1CueWEytsm-Oimwb4b1
 """
 
-pip install adversarial-robustness-toolbox
+# pip install adversarial-robustness-toolbox
 
 import os
 import numpy as np
@@ -36,12 +36,11 @@ def create_model():
     model.add(Dense(100, activation='relu'))
     model.add(Dense(10, activation='softmax'))
     model.compile(optimizer=Adam(), loss=categorical_crossentropy, metrics=[metrics.categorical_accuracy])
-    model.layers[0].set_weights((np.load('/content/drive/MyDrive/ML_Project/Update_Weights/zero_layer_weights.npy'), np.load('/content/drive/MyDrive/ML_Project/Update_Weights/zero_layer_biases.npy')))
-    model.layers[2].set_weights((np.load('/content/drive/MyDrive/ML_Project/Update_Weights/two_layer_weights.npy'), np.load('/content/drive/MyDrive/ML_Project/Update_Weights/two_layer_biases.npy')))
-    model.layers[5].set_weights((np.load('/content/drive/MyDrive/ML_Project/Update_Weights/five_layer_weights.npy'), np.load('/content/drive/MyDrive/ML_Project/Update_Weights/five_layer_biases.npy')))
-    model.layers[6].set_weights((np.load('/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_weights.npy'), np.load('/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_biases.npy')))
+    model.layers[0].set_weights((np.load('TEMP_model_weights/zero_layer_weights.npy'), np.load('TEMP_model_weights/zero_layer_biases.npy')))
+    model.layers[2].set_weights((np.load('TEMP_model_weights/two_layer_weights.npy'), np.load('TEMP_model_weights/two_layer_biases.npy')))
+    model.layers[5].set_weights((np.load('TEMP_model_weights/five_layer_weights.npy'), np.load('TEMP_model_weights/five_layer_biases.npy')))
+    model.layers[6].set_weights((np.load('TEMP_model_weights/six_layer_weights.npy'), np.load('TEMP_model_weights/six_layer_biases.npy')))
     return model
-
 
 x_training = x_train[:7000, :]
 y_training = y_train[:7000, :]
