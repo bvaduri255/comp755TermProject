@@ -7,27 +7,70 @@ Original file is located at
     https://colab.research.google.com/drive/1ONAidUDD8z5MiBbgS5J7GTxPwvYWI8Zc
 """
 
-# pip install adversarial-robustness-toolbox
-
 import os
+import random 
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+
+from tqdm import tqdm
+from models.agg_functions import *
+
+from tensorflow.keras import metrics
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.optimizers.legacy import Adam
 from tensorflow.keras.losses import categorical_crossentropy
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
-from tensorflow.keras import metrics
-from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
-from art.estimators.classification import KerasClassifier
-from art.utils import load_mnist
-from models.agg_functions import *
-from tqdm import tqdm
+from tensorflow.keras.utils import to_categorical
 
-# Load dataset
-(x_train, y_train), (x_test, y_test), min_pixel_value, max_pixel_value = load_mnist()
+from art.utils import load_mnist
+
+def load_mnist_data():
+    (x_train, y_train), (x_test, y_test), min_pixel_value, max_pixel_value = load_mnist()
+    return x_train, y_train, x_test, y_test
+
+def load_custom_data(data_path, train_test_ratio=0.8, shuffle=True):
+    """Assumes all data in one .csv file and all columns as numerical. Label must be final column."""
+    data = pd.read_csv(data_path, header=None, index_col=None)
+    data = data[1:] # Drop first header row in csv
+    cols = data.columns
+    for col in cols:
+        data[col] = data[col].astype(float)
+    data = data.to_numpy()
+
+    if shuffle:
+        random.shuffle(data)
+    
+    # Split data into X and y
+    X, y = data[:, :-1], data[:, -1:]
+    y = to_categorical(y, num_classes=len(np.unique(y)))
+
+    # Split X and y into train/test
+    assert train_test_ratio <= 1
+    train_ins = int(len(data)*train_test_ratio)
+    train_X, train_y = X[:train_ins], y[:train_ins]
+    test_X, test_y = X[train_ins:], y[train_ins:]
+
+    return train_X, train_y, test_X, test_y
+
+
+def flush_temp_model_weights():
+    """THIS IS A DESTRUCTIVE FUNCTION. Delete all files in TEMP_model_weights directory"""
+
+    directory_path = "TEMP_model_weights"
+    try:
+        file_list = os.listdir(directory_path)
+
+        for file_name in file_list:
+            file_path = os.path.join(directory_path, file_name)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                print(f"Deleted: {file_path}")
+    except Exception as e:
+        print(f"ERROR: {e}")
 
 # Function to create a new model
-def create_model():
+def create_model_mnist():
     model = Sequential()
     model.add(Conv2D(filters=4, kernel_size=(5, 5), strides=1, activation="relu", input_shape=(28, 28, 1)))
     model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -37,6 +80,15 @@ def create_model():
     model.add(Dense(100, activation='relu'))
     model.add(Dense(10, activation='softmax'))
     model.compile(optimizer=Adam(), loss=categorical_crossentropy, metrics=[metrics.categorical_accuracy])
+    return model
+
+def create_model_heart():
+    model = Sequential()
+    model.add(Dense(10, input_dim=13, activation='relu')) 
+    model.add(Dense(10, activation='relu')) 
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(2, activation='softmax')) 
+    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
     return model
 
 # Function to compute gradients on a subset of data
@@ -71,61 +123,101 @@ def apply_gradients(model, gradients, learning_rate):
     optimizer = Adam(learning_rate=learning_rate)
     optimizer.apply_gradients(zip(gradients, model.trainable_variables))
 
-# Simulating federated learning
-num_clients = 5
-clients = simulate_clients(num_clients, x_train, y_train)
 
-# Initialize global model
-global_model = create_model()
+print("SAVE EXISTING WEIGHTS NOW IF NECESSARY. This script will flush previous saved weights.")
 
-# Training rounds
-for round in tqdm(range(20)):
-    client_gradients = []
-    for client_data in clients:
-        client_model = create_model()
-        client_model.set_weights(global_model.get_weights())
-        gradients = compute_gradients(client_model, *client_data)
-        client_gradients.append(gradients)
+if __name__ == "__main__":
 
-    # Aggregate gradients and update global model
-    new_gradients = aggregate_gradients(client_gradients, agg_func=simple_mean, support=None)
-    apply_gradients(global_model, new_gradients, learning_rate=0.01)
+    # Get datasets
+    DATASET = "mnist" # "mnist"/"heart"
+    MODEL_TYPE = "mnist model" # "mnist model" / "flat model"
 
-# Evaluate the global model
-global_model.evaluate(x_test, y_test)
+    if DATASET == "heart": 
+        x_train, y_train, x_test, y_test = load_custom_data("heart.csv")
+    elif DATASET == "mnist":
+        x_train, y_train, x_test, y_test = load_mnist_data()
 
-x_training = x_train[:int(0.7*len(x_train)), :]
-y_training = y_train[:int(0.7*len(y_train)), :]
+    if MODEL_TYPE == "mnist model":
+        create_model = create_model_mnist
+    elif MODEL_TYPE == "flat model":
+        create_model = create_model_heart
 
-x_evals = x_test[:int(0.7*len(x_test)), :]
-y_evals = y_test[:int(0.7*len(y_test)), :]
+    # Simulating federated learning
+    num_clients = 3
+    clients = simulate_clients(num_clients, x_train, y_train)
 
-art_train_attack_x = x_train[:len(x_train) - int(len(0.7*x_train)), :]
-art_eval_attack_x = x_test[:len(x_test) - int(len(0.7*x_test)), :]
-art_attack_x = np.vstack([art_train_attack_x, art_eval_attack_x])
+    # Initialize global model
+    global_model = create_model()
 
-art_train_attack_y = y_train[:len(y_train) - int(len(0.7*y_train)), :]
-art_eval_attack_y = y_test[:len(y_test) - int(len(0.7*y_test)), :]
-art_attack_y = np.vstack([art_train_attack_y, art_eval_attack_y])
+    # Training rounds
+    for round in tqdm(range(5)):
+        client_gradients = []
+        client_performances = []
+        for client_data in clients:
+            client_model = create_model()
+            client_model.set_weights(global_model.get_weights())
+            gradients = compute_gradients(client_model, *client_data)
+            client_gradients.append(gradients)
 
-first_layer_weights = global_model.layers[0].get_weights()[0]
-first_layer_biases  = global_model.layers[0].get_weights()[1]
-third_layer_weights = global_model.layers[2].get_weights()[0]
-third_layer_biases  = global_model.layers[2].get_weights()[1]
-sixth_layer_weights = global_model.layers[5].get_weights()[0]
-sixth_layer_biases  = global_model.layers[5].get_weights()[1]
-seventh_layer_weights = global_model.layers[6].get_weights()[0]
-seventh_layer_biases  = global_model.layers[6].get_weights()[1]
+            # Evaluate get performance on test split
+            X_client, y_client = client_data
+            score, acc = client_model.evaluate(X_client, y_client, verbose=0)
+            client_performances.append(acc)
+
+        # Aggregate gradients and update global model
+        new_gradients = aggregate_gradients(client_gradients, agg_func=simple_mean, support=None)
+        apply_gradients(global_model, new_gradients, learning_rate=0.01)
+
+    # Evaluate the global model
+    global_model.evaluate(x_test, y_test)
+
+    # np.save will overwrite existing files, but different models use different file names. 
+    # Delete all files in TEMP_model_weights to prevent contamination when saving different models
+    print("Deleting previous weights.")
+    flush_temp_model_weights()
+    print("Saving new weights")
 
 
-## FOR THE BELOW FILE -> CHANGE TO LOCATION ON YOUR COMPUTER
+    if MODEL_TYPE == "mnist model":
+        first_layer_weights = global_model.layers[0].get_weights()[0]
+        first_layer_biases  = global_model.layers[0].get_weights()[1]
+        third_layer_weights = global_model.layers[2].get_weights()[0]
+        third_layer_biases  = global_model.layers[2].get_weights()[1]
+        sixth_layer_weights = global_model.layers[5].get_weights()[0]
+        sixth_layer_biases  = global_model.layers[5].get_weights()[1]
+        seventh_layer_weights = global_model.layers[6].get_weights()[0]
+        seventh_layer_biases  = global_model.layers[6].get_weights()[1]
 
-np.save("TEMP_model_weights/zero_layer_weights", first_layer_weights)
-np.save("TEMP_model_weights/zero_layer_biases", first_layer_biases)
-np.save("TEMP_model_weights/two_layer_weights", third_layer_weights)
-np.save("TEMP_model_weights/two_layer_biases", third_layer_biases)
-np.save("TEMP_model_weights/five_layer_weights", sixth_layer_weights)
-np.save("TEMP_model_weights/five_layer_biases", sixth_layer_biases)
-np.save("TEMP_model_weights/six_layer_weights", seventh_layer_weights)
-np.save("TEMP_model_weights/six_layer_biases", seventh_layer_biases)
 
+        ## FOR THE BELOW FILE -> CHANGE TO LOCATION ON YOUR COMPUTER
+
+        np.save("TEMP_model_weights/zero_layer_weights", first_layer_weights)
+        np.save("TEMP_model_weights/zero_layer_biases", first_layer_biases)
+        np.save("TEMP_model_weights/two_layer_weights", third_layer_weights)
+        np.save("TEMP_model_weights/two_layer_biases", third_layer_biases)
+        np.save("TEMP_model_weights/five_layer_weights", sixth_layer_weights)
+        np.save("TEMP_model_weights/five_layer_biases", sixth_layer_biases)
+        np.save("TEMP_model_weights/six_layer_weights", seventh_layer_weights)
+        np.save("TEMP_model_weights/six_layer_biases", seventh_layer_biases)
+
+    elif MODEL_TYPE == "flat model":
+        zero_layer_weights = global_model.layers[0].get_weights()[0]
+        zero_layer_biases  = global_model.layers[0].get_weights()[1]
+        first_layer_weights = global_model.layers[1].get_weights()[0]
+        first_layer_biases  = global_model.layers[1].get_weights()[1]
+        second_layer_weights = global_model.layers[2].get_weights()[0]
+        second_layer_biases  = global_model.layers[2].get_weights()[1]
+        third_layer_weights = global_model.layers[3].get_weights()[0]
+        third_layer_biases  = global_model.layers[3].get_weights()[1]
+
+
+        ## FOR THE BELOW FILE -> CHANGE TO LOCATION ON YOUR COMPUTER
+
+        np.save("TEMP_model_weights/zero_layer_weights", zero_layer_weights)
+        np.save("TEMP_model_weights/zero_layer_biases", zero_layer_biases)
+        np.save("TEMP_model_weights/first_layer_weights", first_layer_weights)
+        np.save("TEMP_model_weights/first_layer_biases", first_layer_biases)
+        np.save("TEMP_model_weights/second_layer_weights", second_layer_weights)
+        np.save("TEMP_model_weights/second_layer_biases", second_layer_biases)
+        np.save("TEMP_model_weights/third_layer_weights", third_layer_weights)
+        np.save("TEMP_model_weights/third_layer_biases", third_layer_biases)

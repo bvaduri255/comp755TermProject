@@ -10,23 +10,53 @@ Original file is located at
 # pip install adversarial-robustness-toolbox
 
 import os
+import random
 import numpy as np
+import pandas as pd
+from tqdm import tqdm
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
+
+from tensorflow.keras import metrics
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.optimizers.legacy import Adam
 from tensorflow.keras.losses import categorical_crossentropy
 from tensorflow.keras.layers import Dense, Flatten, Conv2D, MaxPooling2D
-from tensorflow.keras import metrics
-from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
-from art.estimators.classification import KerasClassifier
+
 from art.utils import load_mnist
-from tqdm import tqdm
+from art.estimators.classification import KerasClassifier
+from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
 
-tf.compat.v1.disable_eager_execution()
+def load_mnist_data():
+    (x_train, y_train), (x_test, y_test), min_pixel_value, max_pixel_value = load_mnist()
+    return x_train, y_train, x_test, y_test
 
-(x_train, y_train), (x_test, y_test), min_pixel_value, max_pixel_value = load_mnist()
+def load_custom_data(data_path, train_test_ratio=0.8, shuffle=True):
+    """Assumes all data in one .csv file and all columns as numerical. Label must be final column."""
+    data = pd.read_csv(data_path, header=None, index_col=None)
+    data = data[1:] # Drop first header row in csv
+    cols = data.columns
+    for col in cols:
+        data[col] = data[col].astype(float)
+    data = data.to_numpy()
 
-def create_model():
+    if shuffle:
+        random.shuffle(data)
+    
+    # Split data into X and y
+    X, y = data[:, :-1], data[:, -1:]
+    y = to_categorical(y, num_classes=len(np.unique(y)))
+
+    # Split X and y into train/test
+    assert train_test_ratio <= 1
+    train_ins = int(len(data)*train_test_ratio)
+    train_X, train_y = X[:train_ins], y[:train_ins]
+    test_X, test_y = X[train_ins:], y[train_ins:]
+
+    return train_X, train_y, test_X, test_y
+
+def create_model_mnist():
     model = Sequential()
     model.add(Conv2D(filters=4, kernel_size=(5, 5), strides=1, activation="relu", input_shape=(28, 28, 1)))
     model.add(MaxPooling2D(pool_size=(2, 2)))
@@ -41,6 +71,34 @@ def create_model():
     model.layers[5].set_weights((np.load('TEMP_model_weights/five_layer_weights.npy'), np.load('TEMP_model_weights/five_layer_biases.npy')))
     model.layers[6].set_weights((np.load('TEMP_model_weights/six_layer_weights.npy'), np.load('TEMP_model_weights/six_layer_biases.npy')))
     return model
+
+def create_model_heart():
+    model = Sequential()
+    model.add(Dense(10, input_dim=13, activation='relu')) 
+    model.add(Dense(10, activation='relu')) 
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(2, activation='softmax')) 
+    model.compile(optimizer=Adam(), loss='categorical_crossentropy', metrics=['accuracy'])
+    model.layers[0].set_weights((np.load('TEMP_model_weights/zero_layer_weights.npy'), np.load('TEMP_model_weights/zero_layer_biases.npy')))
+    model.layers[1].set_weights((np.load('TEMP_model_weights/first_layer_weights.npy'), np.load('TEMP_model_weights/first_layer_biases.npy')))
+    model.layers[2].set_weights((np.load('TEMP_model_weights/second_layer_weights.npy'), np.load('TEMP_model_weights/second_layer_biases.npy')))
+    model.layers[3].set_weights((np.load('TEMP_model_weights/third_layer_weights.npy'), np.load('TEMP_model_weights/third_layer_biases.npy')))
+    return model
+
+
+# Get datasets
+DATASET = "mnist" # "mnist"/"heart"
+MODEL_TYPE = "mnist model" # "mnist model" / "flat model"
+
+if DATASET == "heart": 
+    x_train, y_train, x_test, y_test = load_custom_data("heart.csv")
+elif DATASET == "mnist":
+    x_train, y_train, x_test, y_test = load_mnist_data()
+
+if MODEL_TYPE == "mnist model":
+    create_model = create_model_mnist
+elif MODEL_TYPE == "flat model":
+    create_model = create_model_heart
 
 x_training = x_train[:7000, :]
 y_training = y_train[:7000, :]
