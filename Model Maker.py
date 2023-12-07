@@ -124,20 +124,3 @@ np.save("/content/drive/MyDrive/ML_Project/Update_Weights/five_layer_biases", si
 np.save("/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_weights", seventh_layer_weights)
 np.save("/content/drive/MyDrive/ML_Project/Update_Weights/six_layer_biases", seventh_layer_biases)
 
-
-# tf.io.write_csv(first_layer_weights, "/content/drive/MyDrive/ML_Project/Update_Weights/first_layer_weights")
-# tf.io.write_csv(first_layer_biases, "/content/drive/MyDrive/ML_Project/Update_Weights/first_layer_biases")
-# tf.io.write_csv(third_layer_weights, "/content/drive/MyDrive/ML_Project/Update_Weights/third_layer_weights")
-# tf.io.write_csv(third_layer_biases, "/content/drive/MyDrive/ML_Project/Update_Weights/third_layer_biases")
-# tf.io.write_csv(sixth_layer_weights, "/content/drive/MyDrive/ML_Project/Update_Weights/sixth_layer_weights")
-# tf.io.write_csv(sixth_layer_biases, "/content/drive/MyDrive/ML_Project/Update_Weights/sixth_layer_biases")
-# tf.io.write_csv(seventh_layer_weights, "/content/drive/MyDrive/ML_Project/Update_Weights/seventh_layer_weights")
-# tf.io.write_csv(seventh_layer_biases, "/content/drive/MyDrive/ML_Project/Update_Weights/seventh_layer_biases")
-
-# model = KerasClassifier(model=global_model)
-# mi = MembershipInferenceBlackBox(model, attack_model_type="nn", input_type="prediction", nn_model_batch_size=128)
-# mi.fit(x_training, y_training, x_evals, y_evals)
-# values = mi.infer(art_attack_x, art_attack_y, probabilities=True)
-# print(values)
-
-np.array_equal(array_2, first_layer_weights)
