@@ -20,6 +20,7 @@ from tensorflow.keras import metrics
 from art.attacks.inference.membership_inference import MembershipInferenceBlackBox
 from art.estimators.classification import KerasClassifier
 from art.utils import load_mnist
+from models.agg_functions import *
 from tqdm import tqdm
 
 # Load dataset
@@ -56,10 +57,14 @@ def simulate_clients(num_clients, x_train, y_train):
         clients.append(client_data)
     return clients
 
-# Function to aggregate gradients (averaging)
-def aggregate_gradients(gradients):
-    avg_gradients = [np.mean([client_gradients[layer] for client_gradients in gradients], axis=0) for layer in range(len(gradients[0]))]
-    return avg_gradients
+def aggregate_gradients(gradients, agg_func, support=None):
+    num_layers = len(gradients[0])
+    agg_grads = []
+        for layer_i in range(num_layers):
+            layer_grads = [split[layer_i] for split in gradients]
+            agg_layer_grad = agg_func(layer, support)
+            agg_grads.append(agg_layer_grad)
+        return agg_grads
 
 # Function to apply aggregated gradients to the model
 def apply_gradients(model, gradients, learning_rate):
@@ -83,7 +88,7 @@ for round in range(8):
         client_gradients.append(gradients)
 
     # Aggregate gradients and update global model
-    new_gradients = aggregate_gradients(client_gradients)
+    new_gradients = aggregate_gradients(client_gradients, agg_func=simple_mean, support=None)
     apply_gradients(global_model, new_gradients, learning_rate=0.01)
 
 # Evaluate the global model
