@@ -133,7 +133,7 @@ if __name__ == "__main__":
     MODEL_TYPE = "mnist model" # "mnist model" / "flat model"
 
     if DATASET == "heart": 
-        x_train, y_train, x_test, y_test = load_custom_data("heart.csv")
+        x_train, y_train, x_test, y_test = load_custom_data("cardio_train_clean.csv")
     elif DATASET == "mnist":
         x_train, y_train, x_test, y_test = load_mnist_data()
 
